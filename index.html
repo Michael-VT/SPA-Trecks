@@ -2,182 +2,31 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-
-<meta name="viewport"
-      content="width=device-width, initial-scale=1.0">
-
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Tracks Visualizer</title>
-
-<link rel="stylesheet"
-href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 <script src="https://cdn.jsdelivr.net/npm/hammerjs"></script>
-
-<style>
-
-html, body {
-    margin:0;
-    padding:0;
-    width:100%;
-    height:100%;
-    overflow:hidden;
-    font-family:sans-serif;
-    background:#111;
-}
-
-#map {
-    width:100%;
-    height:100%;
-}
-
-#chartContainer {
-
-    position:absolute;
-
-    left:0;
-    bottom:0;
-
-    width:100%;
-    height:220px;
-
-    background:#fff;
-
-    z-index:1000;
-
-    transform:translateY(220px);
-
-    transition:0.3s;
-
-    box-shadow:0 -2px 20px rgba(0,0,0,0.4);
-}
-
-#chartContainer.visible {
-    transform:translateY(0);
-}
-
-#chart {
-    width:100%;
-    height:100%;
-}
-
-#hud {
-
-    position:absolute;
-
-    top:10px;
-    left:10px;
-
-    z-index:1000;
-
-    background:rgba(0,0,0,0.75);
-
-    color:#fff;
-
-    padding:10px;
-
-    border-radius:8px;
-
-    min-width:180px;
-}
-
-#playbackControls {
-
-    position:absolute;
-
-    bottom:240px;
-    left:50%;
-
-    transform:translateX(-50%);
-
-    z-index:1000;
-
-    display:flex;
-    gap:10px;
-
-    background:rgba(0,0,0,0.8);
-
-    padding:10px 14px;
-
-    border-radius:12px;
-}
-
-button {
-
-    border:none;
-
-    background:#333;
-
-    color:#fff;
-
-    padding:8px 12px;
-
-    border-radius:8px;
-
-    cursor:pointer;
-}
-
-button:hover {
-    background:#555;
-}
-
-#legend {
-
-    position:absolute;
-
-    bottom:20px;
-    left:10px;
-
-    z-index:1000;
-
-    background:#fff;
-
-    padding:10px;
-
-    border-radius:8px;
-}
-
-.mobileHidden {
-    display:none;
-}
-
-</style>
+<link rel="stylesheet" href="style.css"/>
 </head>
-
 <body>
-
 <div id="map"></div>
-
 <div id="hud">
-    <div>Mode: <span id="modeLabel">speed</span></div>
-    <div>Speed: <span id="speedLabel">-</span></div>
-    <div>HR: <span id="hrLabel">-</span></div>
-    <div>Height: <span id="eleLabel">-</span></div>
-    <div>Time: <span id="timeLabel">-</span></div>
+    <div><b>Режим:</b> <span id="modeLabel">Скорость</span></div>
+    <div><b>Скорость:</b> <span id="speedLabel">—</span></div>
+    <div><b>Пульс:</b> <span id="hrLabel">—</span></div>
+    <div><b>Высота:</b> <span id="eleLabel">—</span></div>
+    <div><b>Время:</b> <span id="timeLabel">—</span></div>
 </div>
-
 <div id="legend"></div>
-
 <div id="playbackControls">
-
     <button id="playBtn">▶</button>
-
     <button id="pauseBtn">⏸</button>
-
     <button id="chartsBtn">📈</button>
-
 </div>
-
-<div id="chartContainer">
-    <canvas id="chart"></canvas>
-</div>
-
+<div id="chartContainer"><canvas id="chart"></canvas></div>
+<div id="tooltip"></div>
 <script type="module" src="app.js"></script>
-
 </body>
 </html>

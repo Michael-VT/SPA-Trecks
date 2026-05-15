@@ -1,118 +1,28 @@
-export const UIState = {
-    mode: "view", // view | playback | scrub
-    fullscreen: false
-};
-
-export function initKeyboard(config) {
-
-    document.addEventListener("keydown", (e) => {
-
+// ui.js — keyboard + button control layer
+export function initUI(cfg) {
+    document.addEventListener("keydown", e => {
+        if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
         const k = e.key.toLowerCase();
-
-        // ---------------- VIEW MODES
-        if (k === "s") config.onSpeed?.();
-        if (k === "h") config.onHeight?.();
-        if (k === "p") config.onPulse?.();
-
-        // ---------------- PLAYBACK
-        if (k === " ") config.onPlayPause?.();
-
-        if (k === "arrowright") config.onForward?.();
-        if (k === "arrowleft") config.onBack?.();
-
-        // ---------------- UI
-        if (k === "f") config.onFullscreen?.();
-
-        // ---------------- EXPORT
-        if (k === "x") config.onCSV?.();
-        if (k === "z") config.onJSON?.();
-        if (k === "g") config.onGPX?.();
-
-        if (k === "e") config.onScreenshot?.();
+        if (k === "s") cfg.onSpeed?.();
+        if (k === "h") cfg.onHeight?.();
+        if (k === "p") cfg.onPulse?.();
+        if (k === "g") cfg.onCharts?.();
+        if (k === "t") cfg.onStats?.();
+        if (k === "c") cfg.onDrift?.();
+        if (k === " ") { e.preventDefault(); cfg.onPlayPause?.(); }
+        if (k === "arrowright") cfg.onForward?.();
+        if (k === "arrowleft") cfg.onBack?.();
+        if (k === "x") cfg.onCSV?.();
+        if (k === "z") cfg.onJSON?.();
+        if (k === "e") cfg.onGPX?.();
+        if (k === "f") cfg.onFullscreen?.();
     });
-}
-
-export function initButtons(config) {
-
-    document.getElementById("playBtn")
-        ?.addEventListener("click", config.onPlayPause);
-
-    document.getElementById("pauseBtn")
-        ?.addEventListener("click", config.onPause);
-
-    document.getElementById("chartsBtn")
-        ?.addEventListener("click", config.onToggleCharts);
+    document.getElementById("playBtn")?.addEventListener("click", () => cfg.onPlay?.());
+    document.getElementById("pauseBtn")?.addEventListener("click", () => cfg.onPause?.());
+    document.getElementById("chartsBtn")?.addEventListener("click", () => cfg.onCharts?.());
 }
 
 export function toggleFullscreen() {
-
-    const el = document.documentElement;
-
-    if (!document.fullscreenElement) {
-
-        el.requestFullscreen?.();
-    } else {
-
-        document.exitFullscreen?.();
-    }
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+    else document.exitFullscreen?.();
 }
-
-iexport function initUI(config) {
-
-    initKeyboard(config);
-
-    initButtons(config);
-}
-
-initUI({
-
-    onSpeed() {
-        currentMode = "speed";
-        drawTracks(map, tracks, currentMode);
-    },
-
-    onHeight() {
-        currentMode = "height";
-        drawTracks(map, tracks, currentMode);
-    },
-
-    onPulse() {
-        currentMode = "pulse";
-        drawTracks(map, tracks, currentMode);
-    },
-
-    onPlayPause() {
-        playbackRunning = !playbackRunning;
-
-        if (playbackRunning) playbackStep();
-    },
-
-    onForward() {
-        playbackIndex += 10;
-    },
-
-    onBack() {
-        playbackIndex = Math.max(0, playbackIndex - 10);
-    },
-
-    onFullscreen() {
-        toggleFullscreen();
-    },
-
-    onCSV() {
-        exportCSV(playbackTrack);
-    },
-
-    onJSON() {
-        exportJSON(playbackTrack);
-    },
-
-    onGPX() {
-        exportGPX(playbackTrack);
-    },
-
-    onScreenshot() {
-        exportScreenshot();
-    }
-});
-

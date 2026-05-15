@@ -1,0 +1,59 @@
+/* style.css — Tracks Visualizer */
+html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:#111; }
+#map { width:100%; height:100%; }
+
+#hud {
+    position:absolute; top:10px; left:10px; z-index:1000;
+    background:rgba(0,0,0,.8); color:#fff; padding:10px 14px; border-radius:8px;
+    font-size:13px; min-width:170px; backdrop-filter:blur(8px); line-height:1.7;
+}
+#hud b { color:#ffd700; }
+#hud::after {
+    content:"S/H/P режимы | G график | T стат. | Пробел воспр.";
+    display:block; margin-top:6px; padding-top:4px; border-top:1px solid rgba(255,255,255,.15);
+    font-size:9px; color:rgba(255,255,255,.4);
+}
+@media(max-width:768px) {
+    #hud::after { content:"Свайп: режимы | 2×тап: воспр."; }
+    #hud { font-size:11px; padding:8px 10px; min-width:140px; }
+}
+
+#legend {
+    position:absolute; bottom:20px; right:10px; z-index:1000;
+    background:rgba(0,0,0,.8); color:#fff; padding:10px 14px; border-radius:8px;
+    font-size:12px; backdrop-filter:blur(8px);
+}
+
+#chartContainer {
+    position:absolute; left:0; bottom:0; width:100%; height:220px;
+    background:#1a1a1a; z-index:1000;
+    transform:translateY(220px); transition:transform .3s ease;
+    box-shadow:0 -2px 20px rgba(0,0,0,.5);
+}
+#chartContainer.visible { transform:translateY(0); }
+#chart { width:100%; height:100%; }
+
+#playbackControls {
+    position:absolute; bottom:20px; left:50%; transform:translateX(-50%);
+    z-index:1001; display:flex; gap:8px;
+    background:rgba(0,0,0,.8); padding:8px 14px; border-radius:12px;
+    backdrop-filter:blur(8px); transition:bottom .3s ease;
+}
+body.chart-open #playbackControls { bottom:240px; }
+@media(max-width:768px) { body.chart-open #playbackControls { bottom:200px; } #chartContainer { height:180px; transform:translateY(180px); } }
+
+button {
+    border:none; background:#333; color:#fff; padding:8px 14px; border-radius:8px;
+    cursor:pointer; font-size:16px; transition:background .15s;
+}
+button:hover { background:#555; }
+button:active { background:#222; }
+
+#tooltip {
+    position:absolute; background:rgba(0,0,0,.92); color:#fff; padding:10px 14px;
+    border-radius:6px; pointer-events:none; display:none; z-index:3000;
+    font-size:12px; line-height:1.7; max-width:260px;
+    box-shadow:0 4px 16px rgba(0,0,0,.6); border:1px solid rgba(255,255,255,.08);
+}
+
+#statsOverlay { display:none; }

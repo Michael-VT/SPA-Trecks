@@ -1,132 +1,76 @@
+// charts.js — synced Chart.js panel (speed / elevation / HR)
 let chart = null;
 let chartData = [];
-let chartLabels = [];
-
-let externalCursorCallback = null;
-
-chart.canvas.addEventListener('mousemove', (e) => {
-
-    const points = chart.getElementsAtEventForMode(
-        e,
-        'index',
-        { intersect: false },
-        true
-    );
-
-    if (!points.length) return;
-
-    const index = points[0].index;
-
-    if (externalCursorCallback) {
-        externalCursorCallback(index);
-    }
-});
-
-chart.canvas.addEventListener('touchmove', (e) => {
-
-    const touch = e.touches[0];
-
-    const rect = chart.canvas.getBoundingClientRect();
-
-    const x = touch.clientX - rect.left;
-
-    const points = chart.getElementsAtEventForMode(
-        { x, y: 0 },
-        'index',
-        { intersect: false },
-        true
-    );
-
-    if (!points.length) return;
-
-    const index = points[0].index;
-
-    if (externalCursorCallback) {
-        externalCursorCallback(index);
-    }
-});
-
-chart.canvas.addEventListener('click', (e) => {
-
-    const points = chart.getElementsAtEventForMode(
-        e,
-        'index',
-        { intersect: false },
-        true
-    );
-
-    if (!points.length) return;
-
-    const index = points[0].index;
-
-    if (externalCursorCallback) {
-        externalCursorCallback(index);
-    }
-});
+let cursorCallback = null;
 
 export function createCharts(track) {
-
     chartData = track;
+    const ctx = document.getElementById("chart")?.getContext("2d");
+    if (!ctx) return;
 
-    chartLabels = track.map((p, i) => i);
+    if (chart) chart.destroy();
 
-    const ctx = document.getElementById('chart').getContext('2d');
-
-    const speed = track.map(p => p.speed || 0);
-    const ele = track.map(p => p.eleCorrected || 0);
-    const hr = track.map(p => p.hr || 0);
+    const speed = track.map(p => p.speed ?? 0);
+    const ele = track.map(p => p.eleCorrected ?? p.ele ?? 0);
+    const hr = track.map(p => p.hr ?? 0);
 
     chart = new Chart(ctx, {
-        type: 'line',
+        type: "line",
         data: {
-            labels: chartLabels,
+            labels: track.map((_, i) => i),
             datasets: [
-                {
-                    label: 'Speed',
-                    data: speed,
-                    borderColor: 'blue',
-                    tension: 0.2,
-                    pointRadius: 0
-                },
-                {
-                    label: 'Elevation',
-                    data: ele,
-                    borderColor: 'green',
-                    tension: 0.2,
-                    pointRadius: 0
-                },
-                {
-                    label: 'Heart Rate',
-                    data: hr,
-                    borderColor: 'red',
-                    tension: 0.2,
-                    pointRadius: 0
-                }
+                { label: "Speed km/h", data: speed, borderColor: "#4488ff", backgroundColor: "rgba(68,136,255,.08)", tension: .2, pointRadius: 0, borderWidth: 1.5, fill: true },
+                { label: "Elevation m", data: ele, borderColor: "#44bb44", backgroundColor: "rgba(68,187,68,.08)", tension: .2, pointRadius: 0, borderWidth: 1.5, fill: true, yAxisID: "y1" },
+                { label: "HR bpm", data: hr, borderColor: "#ff4444", tension: .2, pointRadius: 0, borderWidth: 1.5, fill: false }
             ]
         },
         options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: {
-                mode: 'index',
-                intersect: false
-            },
+            responsive: true, maintainAspectRatio: false,
+            interaction: { mode: "index", intersect: false },
             plugins: {
-                legend: {
-                    display: true
+                legend: { display: true, labels: { color: "#ccc", font: { size: 11 } } },
+                tooltip: {
+                    callbacks: {
+                        title: items => {
+                            const p = chartData[items[0].dataIndex];
+                            return p?.time ? new Date(p.time).toLocaleTimeString() : `#${items[0].dataIndex}`;
+                        }
+                    }
                 }
             },
-            onHover: (event, elements) => {
-
-                if (!elements.length) return;
-
-                const index = elements[0].index;
-
-                if (externalCursorCallback) {
-                    externalCursorCallback(index);
-                }
+            scales: {
+                x: { display: false },
+                y: { position: "left", title: { display: true, text: "Speed / HR", color: "#888" }, grid: { color: "rgba(255,255,255,.06)" }, ticks: { color: "#888" } },
+                y1: { position: "right", title: { display: true, text: "Elevation m", color: "#888" }, grid: { drawOnChartArea: false }, ticks: { color: "#888" } }
+            },
+            onHover(_, elements) {
+                if (elements.length && cursorCallback) cursorCallback(elements[0].index);
             }
         }
     });
+
+    // Click scrub
+    chart.canvas.addEventListener("click", e => {
+        const pts = chart.getElementsAtEventForMode(e, "index", { intersect: false }, true);
+        if (pts.length && cursorCallback) cursorCallback(pts[0].index);
+    });
+    // Touch scrub
+    chart.canvas.addEventListener("touchmove", e => {
+        const t = e.touches[0], r = chart.canvas.getBoundingClientRect();
+        const pts = chart.getElementsAtEventForMode({ x: t.clientX - r.left, y: 0 }, "index", { intersect: false }, true);
+        if (pts.length && cursorCallback) cursorCallback(pts[0].index);
+    });
 }
 
+export function updateChartCursor(index) {
+    if (!chart) return;
+    chart.setActiveElements([
+        { datasetIndex: 0, index },
+        { datasetIndex: 1, index },
+        { datasetIndex: 2, index }
+    ]);
+    chart.tooltip?.setActiveElements([{ datasetIndex: 0, index }], { x: 0, y: 0 });
+    chart.update("none");
+}
+
+export function bindChartToMap(cb) { cursorCallback = cb; }

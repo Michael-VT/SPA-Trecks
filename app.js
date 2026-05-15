@@ -1,290 +1,109 @@
-import {
-    loadTracks
-} from './modules/parser.js';
+// app.js — orchestrator: loads data, wires all modules
+import { loadTracks } from "./modules/parser.js";
+import { applyDriftCorrection } from "./modules/drift.js";
+import { drawTracks, movePlaybackMarker, setupTooltip } from "./modules/renderer.js";
+import { createCharts, updateChartCursor, bindChartToMap } from "./modules/charts.js";
+import { calculateStatistics, showStatisticsTable, hideStatisticsTable } from "./modules/statistics.js";
+import * as pb from "./modules/playback.js";
+import { exportCSV, exportJSON, exportGPX } from "./modules/export.js";
+import { enableMobileGestures } from "./modules/mobile.js";
+import { initUI, toggleFullscreen } from "./modules/ui.js";
 
-import {
-	applyDriftCorrection 
-} from './modules/drift.js';
+// ── Map ──────────────────────────────────────────
+const map = L.map("map", { preferCanvas: true }).setView([39.36, -9.37], 13);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "&copy; OpenStreetMap"
+}).addTo(map);
 
-import {
-    drawTracks,
-    movePlaybackMarker
-} from './modules/renderer.js';
-
-import {
-    createCharts,
-    updateChartCursor,
-    bindChartToMap
-} from './modules/charts.js';
-
-import {
-    calculateStatistics
-} from './modules/statistics.js';
-
-import {
-    enableMobileGestures
-} from './modules/mobile.js';
-
-import {
-    exportCSV,
-    exportJSON,
-    exportGPX,
-    exportScreenshot
-} from './modules/export.js';
-
-import { 
-	initUI, 
-	toggleFullscreen 
-} from "./modules/ui.js";
-
-const map = L.map('map', {
-    preferCanvas:true
-});
-
-map.setView([39.36, -9.37], 13);
-
-L.tileLayer(
-    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
-).addTo(map);
-
+// ── State ────────────────────────────────────────
 let tracks = [];
-
-let playbackIndex = 0;
-
-let playbackRunning = false;
-
-let playbackTrack = [];
-
-let playbackSpeed = 1;
-
+let primary = [];
 let currentMode = "speed";
+let statsOpen = false;
 
-// ----------------------------
-// Load all tracks
-// ----------------------------
-
+// ── Load ─────────────────────────────────────────
 tracks = await loadTracks([
-
-    'tracks/route1.gpx',
-    'tracks/route2.tcx',
-    'tracks/route3.kml'
-
+    "tracks/route1.gpx",
+    "tracks/route2.tcx",
+    "tracks/route3.kml"
 ]);
 
-bindChartToMap((index) => {
+// Pick longest track as primary
+primary = tracks.reduce((a, b) => b.length > a.length ? b : a, []);
+primary = applyDriftCorrection(primary);
 
-    const p = playbackTrack[index];
+// ── Render ───────────────────────────────────────
+drawTracks(map, primary, currentMode);
+createCharts(primary);
+setupTooltip(map, primary);
+map.fitBounds(primary.map(p => [p.lat, p.lon]));
 
-    playbackIndex = index;
+console.log("Stats:", calculateStatistics(primary));
 
-    movePlaybackMarker(map, p);
-
-    updateHUD(p);
-
-    updateChartCursor(index);
+// ── Chart ↔ Map sync ────────────────────────────
+bindChartToMap(index => {
+    if (index < 0 || index >= primary.length) return;
+    pb.setIndex(index);
 });
 
-// primary track
+// ── Playback ─────────────────────────────────────
+pb.initPlayback(primary, {
+    onMove(i) {
+        const p = primary[i];
+        if (!p) return;
+        movePlaybackMarker(map, p);
+        updateHUD(p);
+        updateChartCursor(i);
+    },
+    onEnd() {}
+});
 
-playbackTrack = tracks[0];
-
-// 🔧 APPLY DRIFT CORRECTION
-playbackTrack = applyDriftCorrection(playbackTrack);
-
-drawTracks(map, tracks, currentMode);
-
-createCharts(playbackTrack);
-
-calculateStatistics(playbackTrack);
-
-map.fitBounds(
-    playbackTrack.map(p => [p.lat, p.lon])
-);
-
-// ----------------------------
-// Playback
-// ----------------------------
-
-function playbackStep() {
-
-    if (!playbackRunning) return;
-
-    if (playbackIndex >= playbackTrack.length) {
-
-        playbackRunning = false;
-
-        return;
-    }
-
-    const p = playbackTrack[playbackIndex];
-
-    movePlaybackMarker(map, p);
-
-    updateHUD(p);
-
-    updateChartCursor(playbackIndex);
-
-    playbackIndex++;
-
-    requestAnimationFrame(playbackStep);
-}
-
-// ----------------------------
-// HUD
-// ----------------------------
-
+// ── HUD ──────────────────────────────────────────
 function updateHUD(p) {
-
-    document.getElementById('speedLabel')
-        .innerText =
-            p.speed
-                ? p.speed.toFixed(1) + ' km/h'
-                : '-';
-
-    document.getElementById('hrLabel')
-        .innerText =
-            p.hr || '-';
-
-    document.getElementById('eleLabel')
-        .innerText =
-            p.ele
-                ? p.ele.toFixed(1) + ' m'
-                : '-';
-
-    document.getElementById('timeLabel')
-        .innerText =
-            p.time || '-';
+    const $ = id => document.getElementById(id);
+    $("speedLabel").textContent = p.speed != null ? p.speed.toFixed(1) + " km/h" : "—";
+    $("hrLabel").textContent = p.hr ?? "—";
+    $("eleLabel").textContent = (p.eleCorrected ?? p.ele) != null ? (p.eleCorrected ?? p.ele).toFixed(1) + " m" : "—";
+    $("timeLabel").textContent = p.time ? new Date(p.time).toLocaleTimeString() : "—";
 }
 
-// ----------------------------
-// Buttons
-// ----------------------------
+function setMode(mode) {
+    currentMode = mode;
+    const names = { speed: "Скорость", height: "Высота", pulse: "Пульс" };
+    document.getElementById("modeLabel").textContent = names[mode] || mode;
+    drawTracks(map, primary, currentMode);
+}
 
-document.getElementById('playBtn')
-.onclick = () => {
+function toggleCharts() {
+    document.getElementById("chartContainer").classList.toggle("visible");
+    document.body.classList.toggle("chart-open");
+}
 
-    playbackRunning = true;
-
-    playbackStep();
-};
-
-document.getElementById('pauseBtn')
-.onclick = () => {
-
-    playbackRunning = false;
-};
-
-document.getElementById('chartsBtn')
-.onclick = () => {
-
-    document
-        .getElementById('chartContainer')
-        .classList
-        .toggle('visible');
-};
-
-// ----------------------------
-// Keyboard
-// ----------------------------
-
-document.addEventListener('keydown', e => {
-
-    const k = e.key.toLowerCase();
-
-   if (k === 'x') {
-       exportCSV(playbackTrack);
-   }
-
-   if (k === 'z') {
-       exportJSON(playbackTrack);
-   }
-   if (k === 's') {
-
-        currentMode = 'speed';
-
-        drawTracks(map, tracks, currentMode);
-    }
-
-    if (k === 'h') {
-
-        currentMode = 'height';
-
-        drawTracks(map, tracks, currentMode);
-    }
-
-    if (k === 'p') {
-
-        currentMode = 'pulse';
-
-        drawTracks(map, tracks, currentMode);
-    }
-
-    if (k === ' ') {
-
-        playbackRunning =
-            !playbackRunning;
-
-        if (playbackRunning) {
-
-            playbackStep();
-        }
-    }
-
-    if (k === 'arrowright') {
-
-        playbackIndex += 20;
-    }
-
-    if (k === 'arrowleft') {
-
-        playbackIndex -= 20;
-
-        if (playbackIndex < 0)
-            playbackIndex = 0;
-    }
+// ── Keyboard + Buttons ───────────────────────────
+initUI({
+    onSpeed: () => setMode("speed"),
+    onHeight: () => setMode("height"),
+    onPulse: () => setMode("pulse"),
+    onPlayPause: () => pb.toggle(),
+    onPlay: () => pb.play(),
+    onPause: () => pb.pause(),
+    onForward: () => pb.setIndex(pb.getIndex() + 20),
+    onBack: () => pb.setIndex(Math.max(0, pb.getIndex() - 20)),
+    onCharts: toggleCharts,
+    onStats: () => { statsOpen ? hideStatisticsTable() : showStatisticsTable(primary); statsOpen = !statsOpen; },
+    onDrift: () => { /* already applied */ },
+    onCSV: () => exportCSV(primary),
+    onJSON: () => exportJSON(primary),
+    onGPX: () => exportGPX(primary),
+    onFullscreen: () => toggleFullscreen()
 });
 
-// ----------------------------
-// Mobile
-// ----------------------------
-
+// ── Mobile gestures ──────────────────────────────
 enableMobileGestures({
-
-    onSwipeLeft() {
-        currentMode = 'speed';
-        drawTracks(map, tracks, currentMode);
-    },
-
-    onSwipeRight() {
-        currentMode = 'height';
-        drawTracks(map, tracks, currentMode);
-    },
-
-    onSwipeUp() {
-        document
-            .getElementById('chartContainer')
-            .classList.add('visible');
-    },
-
-    onSwipeDown() {
-        document
-            .getElementById('chartContainer')
-            .classList.remove('visible');
-    },
-
-    onDoubleTap() {
-
-        playbackRunning = !playbackRunning;
-
-        if (playbackRunning) playbackStep();
-    },
-
-    onLongPress(ev) {
-
-        // позже сюда добавим:
-        // - inspect point
-        // - mini HUD
-        console.log("LONG PRESS", ev);
-    }
+    onSwipeLeft: () => setMode("speed"),
+    onSwipeRight: () => setMode("height"),
+    onSwipeUp: toggleCharts,
+    onSwipeDown: () => { document.getElementById("chartContainer").classList.remove("visible"); document.body.classList.remove("chart-open"); },
+    onDoubleTap: () => pb.toggle(),
+    onLongPress: ev => console.log("Long press", ev.center)
 });
-
