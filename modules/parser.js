@@ -1,4 +1,11 @@
 // parser.js — GPX / TCX / KML loader → unified {lat,lon,ele,time,hr,speed,distance}
+// Parse a local File object (GPX / TCX / KML)
+export async function parseTrackFromFile(file) {
+    const text = await file.text();
+    const points = parseTrack(text, file.name);
+    return enrichTrack(points);
+}
+
 export async function loadTracks(urls) {
     const tracks = [];
     for (const url of urls) {

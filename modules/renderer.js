@@ -4,6 +4,7 @@ let marker = null;
 let polylines = [];
 let tooltipTimer = null;
 let lastClosest = -1;
+let tooltipTrack = null;
 
 // Color: green (low) → yellow → red (high) via HSL
 function colorForRatio(ratio) {
@@ -18,22 +19,32 @@ function val(p, mode) {
     return 0;
 }
 
-export function drawTracks(map, track, mode) {
-    polylines.forEach(p => map.removeLayer(p));
-    polylines = [];
-    if (!track || track.length < 2) return;
-
+function getValueRange(track, mode) {
     let lo = Infinity, hi = -Infinity;
     for (let i = 0; i < track.length; i++) {
         const v = val(track[i], mode);
         if (v < lo) lo = v;
         if (v > hi) hi = v;
     }
-    const range = hi - lo || 1;
+    return [lo, hi];
+}
 
-    // Batch consecutive segments by quantized color bucket
+function clearPolylines() {
+    polylines.forEach(p => p.remove());
+    polylines = [];
+}
+
+function pushSeg(map, renderer, color, coords) {
+    const pl = L.polyline(coords, {
+        color, weight: 4, opacity: 0.9, renderer
+    }).addTo(map);
+    polylines.push(pl);
+}
+
+function drawHeatmap(map, renderer, track, mode) {
+    const [lo, hi] = getValueRange(track, mode);
+    const range = hi - lo || 1;
     const BUCKETS = 32;
-    const renderer = L.canvas({ padding: 0.5 });
     let bucket = -1, coords = [];
 
     for (let i = 0; i < track.length; i++) {
@@ -46,20 +57,15 @@ export function drawTracks(map, track, mode) {
         coords.push([track[i].lat, track[i].lon]);
     }
     if (coords.length > 1) pushSeg(map, renderer, colorForRatio(bucket / (BUCKETS - 1)), coords);
+}
 
+function ensureMarker(map, point) {
     if (!marker) {
-        marker = L.circleMarker([track[0].lat, track[0].lon], {
+        marker = L.circleMarker([point.lat, point.lon], {
             radius: 7, color: "#fff", fillColor: "#ffd700", fillOpacity: 1, weight: 2
         }).addTo(map);
     }
-    updateLegend(mode, lo, hi);
-}
-
-function pushSeg(map, renderer, color, coords) {
-    const pl = L.polyline(coords, {
-        color, weight: 4, opacity: 0.9, renderer
-    }).addTo(map);
-    polylines.push(pl);
+    marker.setLatLng([point.lat, point.lon]);
 }
 
 function updateLegend(mode, lo, hi) {
@@ -75,15 +81,77 @@ function updateLegend(mode, lo, hi) {
             <span>${lo.toFixed(1)} ${unit}</span><span>${hi.toFixed(1)} ${unit}</span></div>`;
 }
 
+function hideLegend() {
+    const el = document.getElementById("legend");
+    if (el) el.innerHTML = "";
+}
+
+// ── Single-track rendering (backward compat) ──────
+
+export function drawTracks(map, track, mode) {
+    clearPolylines();
+    if (!track || track.length < 2) return;
+
+    const renderer = L.canvas({ padding: 0.5 });
+    drawHeatmap(map, renderer, track, mode);
+    ensureMarker(map, track[0]);
+    tooltipTrack = track;
+
+    const [lo, hi] = getValueRange(track, mode);
+    updateLegend(mode, lo, hi);
+}
+
+// ── Multi-track rendering ──────────────────────────
+
+export function drawMultipleTracks(map, trackList, mode) {
+    clearPolylines();
+    if (!trackList || !trackList.length) { hideLegend(); return; }
+
+    const renderer = L.canvas({ padding: 0.5 });
+
+    // Draw non-primary tracks first (underneath)
+    for (const t of trackList) {
+        if (!t.isPrimary && t.points.length >= 2) {
+            const pl = L.polyline(t.points.map(p => [p.lat, p.lon]), {
+                color: t.color, weight: 3, opacity: 0.7, renderer
+            }).addTo(map);
+            polylines.push(pl);
+        }
+    }
+
+    // Draw primary with heatmap on top
+    const primary = trackList.find(t => t.isPrimary);
+    if (primary && primary.points.length >= 2) {
+        drawHeatmap(map, renderer, primary.points, mode);
+        ensureMarker(map, primary.points[0]);
+        tooltipTrack = primary.points;
+        const [lo, hi] = getValueRange(primary.points, mode);
+        updateLegend(mode, lo, hi);
+    } else {
+        hideLegend();
+    }
+}
+
+// ── Playback marker ────────────────────────────────
+
 export function movePlaybackMarker(map, point) {
     if (marker && point) marker.setLatLng([point.lat, point.lon]);
 }
 
-export function setupTooltip(map, track) {
+// ── Tooltip ────────────────────────────────────────
+
+export function setTooltipTrack(track) {
+    tooltipTrack = track;
+    lastClosest = -1;
+}
+
+export function setupTooltip(map) {
     const tip = document.getElementById("tooltip");
-    if (!tip || !track.length) return;
+    if (!tip) return;
 
     map.on("mousemove", (e) => {
+        const track = tooltipTrack;
+        if (!track || !track.length) return;
         let ci = -1, cd = Infinity;
         // Coarse scan
         for (let i = 0; i < track.length; i += 8) {

@@ -1,61 +1,92 @@
-// app.js — orchestrator: loads data, wires all modules
-import { loadTracks } from "./modules/parser.js";
+// app.js — orchestrator: wires all modules, track panel driven
 import { applyDriftCorrection } from "./modules/drift.js";
-import { drawTracks, movePlaybackMarker, setupTooltip } from "./modules/renderer.js";
+import { drawMultipleTracks, movePlaybackMarker, setupTooltip, setTooltipTrack } from "./modules/renderer.js";
 import { createCharts, updateChartCursor, bindChartToMap } from "./modules/charts.js";
 import { calculateStatistics, showStatisticsTable, hideStatisticsTable } from "./modules/statistics.js";
 import * as pb from "./modules/playback.js";
 import { exportCSV, exportJSON, exportGPX } from "./modules/export.js";
 import { enableMobileGestures } from "./modules/mobile.js";
 import { initUI, toggleFullscreen } from "./modules/ui.js";
+import { initTrackPanel } from "./modules/tracks-panel.js";
 
+
+// ── Version ──────────────────────────────────────
+export const VERSION = "1.1.0";
+export const VERSION_DATE = "2026-05-16";
+
+// ── Set document title with version ──────────────
+document.title = `Tracks Visualizer v${VERSION}`;
 // ── Map ──────────────────────────────────────────
-const map = L.map("map", { preferCanvas: true }).setView([39.36, -9.37], 13);
+const map = L.map("map", { preferCanvas: true }).setView([39.36, -9.37], 5);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: "&copy; OpenStreetMap"
 }).addTo(map);
 
 // ── State ────────────────────────────────────────
-let tracks = [];
 let primary = [];
 let currentMode = "speed";
 let statsOpen = false;
 
-// ── Load ─────────────────────────────────────────
-tracks = await loadTracks([
-    "tracks/route1.gpx",
-    "tracks/route2.tcx",
-    "tracks/route3.kml"
-]);
+// ── Tooltip (setup once, track reference updated dynamically) ──
+setupTooltip(map);
 
-// Pick longest track as primary
-primary = tracks.reduce((a, b) => b.length > a.length ? b : a, []);
-primary = applyDriftCorrection(primary);
+// ── Track Panel ──────────────────────────────────
+const panel = initTrackPanel(document.getElementById("trackPanelContainer"), {
+    version: VERSION,
+    versionDate: VERSION_DATE,
+    onUpdate(reason) {
+        const primaryTrack = panel.getPrimaryTrack();
+        const visible = panel.getVisibleTracks();
 
-// ── Render ───────────────────────────────────────
-drawTracks(map, primary, currentMode);
-createCharts(primary);
-setupTooltip(map, primary);
-map.fitBounds(primary.map(p => [p.lat, p.lon]));
+        // Update primary with drift correction
+        if (primaryTrack) {
+            primary = applyDriftCorrection([...primaryTrack.points]);
+        } else {
+            primary = [];
+        }
 
-console.log("Stats:", calculateStatistics(primary));
+        // Build renderer track list
+        const trackList = visible.map(t => ({
+            points: t.points,
+            color: t.color,
+            isPrimary: primaryTrack && t.id === primaryTrack.id
+        }));
+
+        drawMultipleTracks(map, trackList, currentMode);
+        setTooltipTrack(primary);
+
+        if (primary.length > 0) {
+            createCharts(primary);
+            pb.initPlayback(primary, {
+                onMove(i) {
+                    const p = primary[i];
+                    if (!p) return;
+                    movePlaybackMarker(map, p);
+                    updateHUD(p);
+                    updateChartCursor(i);
+                },
+                onEnd() {}
+            });
+        } else {
+            pb.initPlayback([], { onMove() {}, onEnd() {} });
+        }
+
+        // Fit bounds when files added or primary changed
+        if ((reason === "files-added" || reason === "primary-changed") && primary.length > 0) {
+            map.fitBounds(primary.map(p => [p.lat, p.lon]));
+        }
+        // If all visible tracks, fit to union of bounds
+        if (reason === "files-added" && visible.length > 1) {
+            const allPts = visible.flatMap(t => t.points.map(p => [p.lat, p.lon]));
+            if (allPts.length > 0) map.fitBounds(allPts);
+        }
+    }
+});
 
 // ── Chart ↔ Map sync ────────────────────────────
 bindChartToMap(index => {
     if (index < 0 || index >= primary.length) return;
     pb.setIndex(index);
-});
-
-// ── Playback ─────────────────────────────────────
-pb.initPlayback(primary, {
-    onMove(i) {
-        const p = primary[i];
-        if (!p) return;
-        movePlaybackMarker(map, p);
-        updateHUD(p);
-        updateChartCursor(i);
-    },
-    onEnd() {}
 });
 
 // ── HUD ──────────────────────────────────────────
@@ -71,7 +102,15 @@ function setMode(mode) {
     currentMode = mode;
     const names = { speed: "Скорость", height: "Высота", pulse: "Пульс" };
     document.getElementById("modeLabel").textContent = names[mode] || mode;
-    drawTracks(map, primary, currentMode);
+
+    const visible = panel.getVisibleTracks();
+    const primaryTrack = panel.getPrimaryTrack();
+    const trackList = visible.map(t => ({
+        points: t.points,
+        color: t.color,
+        isPrimary: primaryTrack && t.id === primaryTrack.id
+    }));
+    drawMultipleTracks(map, trackList, currentMode);
 }
 
 function toggleCharts() {

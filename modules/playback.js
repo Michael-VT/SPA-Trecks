@@ -1,5 +1,5 @@
 // playback.js — play / pause / seek animation engine
-let track = [], running = false, idx = 0, speed = 1, raf = null, cbs = {};
+let track = [], running = false, idx = 0, speed = 4, raf = null, cbs = {};
 
 export function initPlayback(t, callbacks) { track = t; cbs = callbacks; idx = 0; running = false; }
 export function play() { if (running) return; running = true; step(); }
