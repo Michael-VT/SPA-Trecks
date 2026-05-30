@@ -25,6 +25,18 @@
     <button id="playBtn">▶</button>
     <button id="pauseBtn">⏸</button>
     <button id="chartsBtn">📈</button>
+    <!-- Audio: rhythmic + tones + voice (user request) -->
+    <button id="audioBtn" title="Музыка: Выкл / Light Morning / Energetic / Chill Paris / Motivational + тоны">🎵</button>
+    <!-- Duration mode: 5/10/15/30 сек на весь трек (по умолчанию 15) -->
+    <select id="durationSel" title="Длительность воспроизведения всего трека">
+        <option value="">По точкам</option>
+        <option value="5">5 сек</option>
+        <option value="10">10 сек</option>
+        <option value="15" selected>15 сек</option>
+        <option value="30">30 сек</option>
+    </select>
+    <!-- Quick Eiffel demo (the official example for GitHub Pages / no server) -->
+    <button id="eiffelBtn" title="Загрузить демо: пробежка вокруг Эйфелевой башни (Париж)">🎯 Эйфель</button>
 </div>
 <div id="chartContainer"><canvas id="chart"></canvas></div>
 <div id="tooltip"></div>

@@ -16,10 +16,23 @@ export function initUI(cfg) {
         if (k === "z") cfg.onJSON?.();
         if (k === "e") cfg.onGPX?.();
         if (k === "f") cfg.onFullscreen?.();
+        if (k === "a") cfg.onAudioCycle?.();
+        if (k === "d") cfg.onEiffelDemo?.();
     });
     document.getElementById("playBtn")?.addEventListener("click", () => cfg.onPlay?.());
     document.getElementById("pauseBtn")?.addEventListener("click", () => cfg.onPause?.());
     document.getElementById("chartsBtn")?.addEventListener("click", () => cfg.onCharts?.());
+    document.getElementById("audioBtn")?.addEventListener("click", () => cfg.onAudioCycle?.());
+    document.getElementById("eiffelBtn")?.addEventListener("click", () => cfg.onEiffelDemo?.());
+
+    // Duration selector
+    const dur = document.getElementById("durationSel");
+    if (dur) {
+        dur.addEventListener("change", () => {
+            const v = dur.value ? parseInt(dur.value, 10) : null;
+            cfg.onDuration?.(v);
+        });
+    }
 }
 
 export function toggleFullscreen() {

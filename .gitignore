@@ -1,3 +1,11 @@
-tracks/
-.DS_Store
+# Planning / internal artifacts (never commit)
+SUMMARY.md
+.planning/
 
+# Only allow the Eiffel Tower demo samples (the official examples for the repo)
+# All other real tracks stay local-only for heavy testing
+tracks/*
+!tracks/eiffel-tower-run.*
+
+# OS
+.DS_Store
